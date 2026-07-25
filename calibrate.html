@@ -1,0 +1,135 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Mar Vista — georeference the paper map</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<style>
+  html,body{margin:0;height:100%;font:13px/1.4 -apple-system,system-ui,sans-serif}
+  #map{position:absolute;inset:0}
+  #panel{position:absolute;z-index:1000;top:10px;right:10px;width:250px;background:#fff;
+         border-radius:10px;box-shadow:0 4px 20px rgba(0,0,0,.35);padding:12px 14px}
+  #panel h1{font-size:13px;margin:0 0 8px}
+  label{display:block;margin:7px 0 2px;font-size:11px;color:#555;text-transform:uppercase;letter-spacing:.05em}
+  input[type=number]{width:100%;padding:5px 6px;border:1px solid #ccc;border-radius:6px;font:inherit}
+  input[type=range]{width:100%}
+  #out{margin-top:10px;font:11px/1.35 ui-monospace,Menlo,monospace;background:#f4f4f2;
+       padding:8px;border-radius:6px;white-space:pre-wrap;word-break:break-all;user-select:all}
+  .keys{margin-top:8px;font-size:11px;color:#666}
+  #ov{position:absolute;transform-origin:0 0;pointer-events:none}
+</style>
+</head>
+<body>
+<div id="map"></div>
+<div id="panel">
+  <h1>Paper map alignment</h1>
+  <label>Center latitude</label>  <input type="number" id="lat" step="0.00001" value="10.41499">
+  <label>Center longitude</label> <input type="number" id="lng" step="0.00001" value="-85.77207">
+  <label>Map width (metres)</label><input type="number" id="w" step="5" value="1100">
+  <label>Rotation (deg CW)</label> <input type="number" id="rot" step="0.5" value="0">
+  <label>Opacity <span id="opv">0.55</span></label>
+  <input type="range" id="op" min="0" max="1" step="0.05" value="0.55">
+  <div class="keys">Arrows = move · +/− = scale · [ ] = rotate<br>Shift = 10× finer</div>
+  <div id="out"></div>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+const IMG = 'panel.png', IW = 719, IH = 827;
+const M_PER_DEG_LAT = 110574;
+const mPerDegLon = lat => 111320 * Math.cos(lat * Math.PI / 180);
+
+const map = L.map('map', { zoomControl: true }).setView([10.41499, -85.77207], 16);
+L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+  { maxZoom: 21, maxNativeZoom: 19, attribution: 'Esri World Imagery' }).addTo(map);
+
+const pane = map.createPane('overlay');
+pane.style.zIndex = 450;
+const img = document.createElement('img');
+img.id = 'ov'; img.src = IMG; pane.appendChild(img);
+
+const el = id => document.getElementById(id);
+const S = { lat: 10.41499, lng: -85.77207, w: 1100, rot: 0 };
+
+// unit vectors of the image axes expressed in local (east, north) metres
+function axes() {
+  const t = S.rot * Math.PI / 180;
+  return {
+    ex: [Math.cos(t), -Math.sin(t)],   // image +x (rightwards on the page)
+    ey: [-Math.sin(t), -Math.cos(t)],  // image +y (downwards on the page)
+    s: S.w / IW                        // metres per image pixel
+  };
+}
+
+// image pixel -> LatLng
+function pxToLatLng(px, py) {
+  const { ex, ey, s } = axes();
+  const dx = (px - IW / 2) * s, dy = (py - IH / 2) * s;
+  const E = dx * ex[0] + dy * ey[0];
+  const N = dx * ex[1] + dy * ey[1];
+  return L.latLng(S.lat + N / M_PER_DEG_LAT, S.lng + E / mPerDegLon(S.lat));
+}
+
+function draw() {
+  const tl = map.latLngToLayerPoint(pxToLatLng(0, 0));
+  const tr = map.latLngToLayerPoint(pxToLatLng(IW, 0));
+  const bl = map.latLngToLayerPoint(pxToLatLng(0, IH));
+  const ax = tr.subtract(tl), ay = bl.subtract(tl);
+  img.style.width = IW + 'px'; img.style.height = IH + 'px';
+  img.style.transform =
+    `matrix(${ax.x / IW},${ax.y / IW},${ay.x / IH},${ay.y / IH},${tl.x},${tl.y})`;
+  report();
+}
+
+function report() {
+  const { s } = axes();
+  el('out').textContent = JSON.stringify({
+    imageW: IW, imageH: IH,
+    centerLat: +S.lat.toFixed(6), centerLon: +S.lng.toFixed(6),
+    metresPerPixel: +s.toFixed(4), rotationDeg: +S.rot.toFixed(2)
+  }, null, 1);
+}
+
+function sync(fromInputs) {
+  if (fromInputs) {
+    S.lat = +el('lat').value; S.lng = +el('lng').value;
+    S.w = +el('w').value;     S.rot = +el('rot').value;
+  } else {
+    el('lat').value = S.lat.toFixed(6); el('lng').value = S.lng.toFixed(6);
+    el('w').value = S.w.toFixed(1);     el('rot').value = S.rot.toFixed(2);
+  }
+  draw();
+}
+
+['lat', 'lng', 'w', 'rot'].forEach(id => el(id).addEventListener('input', () => sync(true)));
+el('op').addEventListener('input', e => {
+  img.style.opacity = e.target.value; el('opv').textContent = e.target.value;
+});
+img.style.opacity = 0.55;
+
+addEventListener('keydown', e => {
+  const f = e.shiftKey ? 0.1 : 1;
+  const step = 10 * f;                       // metres
+  const dLat = step / M_PER_DEG_LAT, dLon = step / mPerDegLon(S.lat);
+  let hit = true;
+  switch (e.key) {
+    case 'ArrowUp':    S.lat += dLat; break;
+    case 'ArrowDown':  S.lat -= dLat; break;
+    case 'ArrowLeft':  S.lng -= dLon; break;
+    case 'ArrowRight': S.lng += dLon; break;
+    case '+': case '=': S.w *= (1 + 0.01 * f); break;
+    case '-': case '_': S.w /= (1 + 0.01 * f); break;
+    case '[': S.rot -= 1 * f; break;
+    case ']': S.rot += 1 * f; break;
+    default: hit = false;
+  }
+  if (hit) { e.preventDefault(); sync(false); }
+});
+
+map.on('move zoom viewreset zoomend moveend', draw);
+img.addEventListener('load', draw);
+sync(false);
+window.MV = { S, sync, axes, pxToLatLng, map };  // console handle
+</script>
+</body>
+</html>
