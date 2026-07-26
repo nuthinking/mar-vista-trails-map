@@ -144,12 +144,12 @@ html, body {
  *
  * Same blur, same saturation, so they belong to one system; inverted so the
  * control never reads as a label. */
-.rule, #tip, #legendBtn {
+.rule, #tip, #legendBtn, #drawer {
   -webkit-backdrop-filter: blur(16px) saturate(1.5);
   backdrop-filter: blur(16px) saturate(1.5);
 }
 
-.rule, #tip {
+.rule, #tip, #drawer {
   background: rgba(252, 252, 246, .62);
   border: 1px solid rgba(24, 28, 20, .10);
   color: #2b3028;
@@ -213,7 +213,7 @@ html, body {
   position: fixed;
   inset: 0;
   z-index: 20;
-  background: rgba(0, 0, 0, .35);
+  background: rgba(24, 28, 20, .22);
   animation: fade .2s ease-out;
 }
 #scrim[hidden] { display: none; }
@@ -227,9 +227,9 @@ html, body {
   max-height: 82svh;
   display: flex;
   flex-direction: column;
-  background: var(--paper);
   border-radius: 16px 16px 0 0;
-  box-shadow: 0 -6px 34px rgba(0, 0, 0, .3);
+  border-top: 1px solid rgba(255, 255, 255, .55);
+  box-shadow: 0 -6px 34px rgba(40, 40, 25, .18);
   padding-bottom: var(--safe-b);
   animation: rise .24s cubic-bezier(.32, .72, 0, 1);
 }
@@ -297,7 +297,7 @@ html, body {
 
 /* ---------- legend content ---------- */
 
-.col { margin: 0; padding: 0; list-style: none; border: 1px solid var(--rule); }
+.col { margin: 0; padding: 0; list-style: none; border: 1px solid rgba(24, 28, 20, .13); }
 
 .col li {
   display: flex;
@@ -307,7 +307,7 @@ html, body {
   min-height: 32px;
   font-size: 13px;
 }
-.col li + li { border-top: 1px solid var(--rule); }
+.col li + li { border-top: 1px solid rgba(24, 28, 20, .10); }
 
 .sym { flex: none; width: 60px; display: flex; align-items: center; justify-content: center; gap: 3px; }
 .label { flex: 1; min-width: 0; }
