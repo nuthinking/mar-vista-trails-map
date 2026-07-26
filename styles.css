@@ -122,28 +122,79 @@ html, body {
 .dot.warn { background: var(--warn); }
 .dot.bad  { background: var(--bad); }
 
-/* ---------- legend trigger ---------- */
-#legendBtn {
+/* ---------- bottom bar: standing rule + legend ---------- */
+/* Three columns: an empty gutter the width of the button, the pill, then the
+   button. The pill is centred on the screen rather than merely left of it. */
+#footbar {
   position: fixed;
   z-index: 10;
-  right: 14px;
-  bottom: calc(var(--safe-b) + 14px);
-  padding: 10px 16px;
-  border: 0;
-  border-radius: 22px;
+  left: 16px; right: 16px;
+  bottom: calc(var(--safe-b) + 16px);
+  display: grid;
+  grid-template-columns: 40px 1fr 40px;
+  gap: 8px;
+  align-items: stretch;      /* one height, set once, shared by both */
+  height: 40px;
+}
+
+/* The one rule that must never be behind a tap. */
+.rule {
+  grid-column: 2;
+  justify-self: center;      /* shrink to the text, centred in the gap */
+  max-width: 100%;
+  min-width: 0;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 14px;
+  border-radius: 20px;
+  overflow: hidden;
   background: rgba(24, 28, 20, .88);
   -webkit-backdrop-filter: blur(12px);
   backdrop-filter: blur(12px);
   box-shadow: 0 2px 12px rgba(0, 0, 0, .22);
   color: #f3f4ee;
-  font: inherit;
-  font-size: 13.5px;
-  font-weight: 550;
-  letter-spacing: .02em;
+  font-size: 11.5px;
+  line-height: 1.25;
+  letter-spacing: .01em;
+}
+.rule .nobike { stroke: #ff8f7a; }
+
+/* The text must be its own flex child with min-width:0, otherwise it
+   overflows into the pill's padding-right and eats it. */
+.rule span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+#legendBtn {
+  grid-column: 3;
+  aspect-ratio: 1;           /* square from the shared height, so a true circle */
+  display: grid; place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(24, 28, 20, .88);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+  box-shadow: 0 2px 12px rgba(0, 0, 0, .22);
+  color: #f3f4ee;
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
 }
 #legendBtn:active { background: rgba(24, 28, 20, .98); }
+#footbar[hidden] { display: none; }
+#legendBtn svg {
+  width: 20px; height: 20px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+#legendBtn svg .fill { fill: currentColor; stroke: none; }
 
 /* ---------- drawer ---------- */
 #scrim {
@@ -233,12 +284,8 @@ html, body {
 .nobike .ring { stroke-width: 1.9; }
 
 /* ---------- legend content ---------- */
-.grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0 10px; }
-@media (max-width: 430px) { .grid { grid-template-columns: 1fr; } }
 
 .col { margin: 0; padding: 0; list-style: none; border: 1px solid var(--rule); }
-.col + .col { margin-top: 0; }
-@media (max-width: 430px) { .col + .col { margin-top: 10px; } }
 
 .col li {
   display: flex;
@@ -306,18 +353,7 @@ html, body {
 
 .drop { width: 15px; height: 15px; fill: var(--water); }
 
-.difficulty {
-  margin: 12px 0 0;
-  font-size: 12px;
-  color: #5c6157;
-}
 
-.build {
-  margin: 6px 0 0;
-  font-size: 10.5px;
-  font-variant-numeric: tabular-nums;
-  color: #9aa093;
-}
 
 /* ---------- tappable places on the map ---------- */
 /* No hit-box elements: taps are matched to the nearest place in JS, so
@@ -350,6 +386,14 @@ html, body {
   border-top-color: rgba(24, 28, 20, .88);
 }
 
-.grid.one-col { grid-template-columns: 1fr; }
-.hint-row { color: #5c6157; font-size: 12.5px; line-height: 1.35; }
-.hint-row .label { padding: 2px 0; }
+
+/* the difficulty key sits with the stars it explains, as the last row —
+   laid out like the printed legend: a star in the symbol column, two lines */
+.col li.key { font-size: 11px; color: #5c6157; line-height: 1.45; }
+.col li.key .sym .stars { font-size: 15px; }
+
+.hint-foot {
+  margin: 12px 0 0;
+  font-size: 12px;
+  color: #5c6157;
+}

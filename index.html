@@ -14,7 +14,7 @@
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <!-- ?v= is bumped with BUILD in app.js; without it browsers serve a stale
      stylesheet while the HTML updates, which looks exactly like a broken layout -->
-<link rel="stylesheet" href="styles.css?v=28">
+<link rel="stylesheet" href="styles.css?v=38">
 </head>
 <body>
 
@@ -35,7 +35,23 @@
   <span id="statusText">Waiting for GPS…</span>
 </header>
 
-<button id="legendBtn" aria-expanded="false" aria-controls="drawer">Legend</button>
+<div id="footbar">
+  <p class="rule">
+    <svg class="nobike" viewBox="0 0 24 24" aria-hidden="true">
+      <circle cx="6.5" cy="15.5" r="4"/><circle cx="17.5" cy="15.5" r="4"/>
+      <path d="M6.5 15.5 10 8h5l2.5 7.5M10 8h4"/>
+      <circle cx="12" cy="12" r="11" class="ring"/>
+      <line x1="4.2" y1="4.2" x2="19.8" y2="19.8" class="ring"/>
+    </svg>
+    <span>Hikers only on trails with marked posts</span>
+  </p>
+  <button id="legendBtn" aria-expanded="false" aria-controls="drawer" aria-label="Legend">
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <circle cx="12" cy="6.6" r="1.5" class="fill"/>
+      <line x1="12" y1="10.5" x2="12" y2="17.8"/>
+    </svg>
+  </button>
+</div>
 
 <div id="scrim" hidden></div>
 
@@ -49,18 +65,8 @@
   </div>
 
   <div class="drawer-body">
-    <p class="note">
-      Hikers only on trails with marked posts
-      <svg class="nobike" viewBox="0 0 24 24" aria-hidden="true">
-        <circle cx="6.5" cy="15.5" r="4"/><circle cx="17.5" cy="15.5" r="4"/>
-        <path d="M6.5 15.5 10 8h5l2.5 7.5M10 8h4"/>
-        <circle cx="12" cy="12" r="11" class="ring"/>
-        <line x1="4.2" y1="4.2" x2="19.8" y2="19.8" class="ring"/>
-      </svg>
-    </p>
 
-    <div class="grid one-col">
-      <ul class="col">
+    <ul class="col">
         <li>
           <span class="sym heads">
             <i style="background:#0b40ca"></i><i style="background:#c30008"></i>
@@ -104,22 +110,19 @@
           <span class="label">Yellow “Sunrise”</span>
           <span class="stars" data-n="3"></span>
         </li>
-      </ul>
+        <li class="key">
+          <span class="sym"><span class="stars" data-n="1"></span></span>
+          <span class="label">
+            Difficulty / <span class="stars" data-n="1"></span> : easiest<br>
+            <span class="stars" data-n="5"></span> : most difficult
+          </span>
+        </li>
+    </ul>
 
-      <ul class="col">
-        <li><span class="sym"><b class="mk">M / K</b></span><span class="label">Miles / kilometres</span></li>
-        <li class="hint-row"><span class="label">Tap any badge on the map — gates, tennis, Gracia, the playground — to see what it is.</span></li>
-      </ul>
-    </div>
-
-    <p class="difficulty">
-      Difficulty · <span class="stars" data-n="1"></span> easiest
-      → <span class="stars" data-n="5"></span> most difficult
-    </p>
-    <p class="build">build <span id="build">?</span></p>
+    <p class="hint-foot">Tap any badge on the map to see what it is.</p>
   </div>
 </aside>
 
-<script src="app.js?v=28"></script>
+<script src="app.js?v=38"></script>
 </body>
 </html>

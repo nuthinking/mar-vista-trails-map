@@ -1,9 +1,9 @@
 'use strict';
 
-/* Bump on every edit. Shown in the legend drawer and logged to the console,
- * so "am I actually looking at the new code?" is answerable at a glance —
- * a stale service worker or HTTP cache will show an older stamp. */
-const BUILD = '2026-07-25 · 28';
+/* Bump on every edit. Logged to the console so "am I actually looking at the
+ * new code?" is answerable at a glance — a stale service worker or HTTP cache
+ * will show an older stamp. */
+const BUILD = '2026-07-25 · 38';
 console.info('%c[marvista] build ' + BUILD, 'color:#3d7a24;font-weight:bold');
 
 /* ------------------------------------------------------------------ *
@@ -311,10 +311,9 @@ function setDrawer(open) {
   drawer.hidden = !open;
   scrim.hidden = !open;
   legendBtn.setAttribute('aria-expanded', String(open));
-  legendBtn.hidden = open;
+  $('footbar').hidden = open;
 }
 
-$('build').textContent = BUILD;
 legendBtn.addEventListener('click', () => setDrawer(true));
 scrim.addEventListener('click', () => setDrawer(false));
 $('drawerClose').addEventListener('click', () => setDrawer(false));
