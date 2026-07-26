@@ -3,24 +3,137 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-<meta name="theme-color" content="#1f5c33">
+<meta name="theme-color" content="#186060">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Mar Vista">
 <title>Mar Vista Trails</title>
 <link rel="manifest" href="manifest.webmanifest">
-<link rel="apple-touch-icon" href="icons/icon-180.png">
-<link rel="stylesheet" href="styles.css">
+<link rel="icon" href="icons/favicon-32.png" sizes="32x32" type="image/png">
+<link rel="icon" href="icons/icon-192.png" sizes="192x192" type="image/png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<!-- ?v= is bumped with BUILD in app.js; without it browsers serve a stale
+     stylesheet while the HTML updates, which looks exactly like a broken layout -->
+<link rel="stylesheet" href="styles.css?v=24">
 </head>
 <body>
 
-<canvas id="map"></canvas>
+<!-- The map is real DOM SVG, not a canvas: the browser rasterises it at the
+     device's own pixel density, so it stays sharp at any zoom or DPR. -->
+<div id="stage">
+  <div id="sheet">
+    <div id="art"></div>
+    <div id="me" hidden>
+      <div id="accuracy"></div>
+      <div id="dot"></div>
+    </div>
+  </div>
+</div>
 
-<header id="status">
+<header id="status" hidden>
   <span id="statusDot" class="dot"></span>
   <span id="statusText">Waiting for GPS…</span>
 </header>
 
-<script src="app.js"></script>
+<button id="legendBtn" aria-expanded="false" aria-controls="drawer">Legend</button>
+
+<div id="scrim" hidden></div>
+
+<aside id="drawer" hidden aria-label="Legend">
+  <div class="grabber"></div>
+  <div class="drawer-head">
+    <h2>Legend</h2>
+    <button id="drawerClose" aria-label="Close legend">
+      <svg viewBox="0 0 24 24"><line x1="5" y1="5" x2="19" y2="19"/><line x1="19" y1="5" x2="5" y2="19"/></svg>
+    </button>
+  </div>
+
+  <div class="drawer-body">
+    <p class="note">
+      Hikers only on trails with marked posts
+      <svg class="nobike" viewBox="0 0 24 24" aria-hidden="true">
+        <circle cx="6.5" cy="15.5" r="4"/><circle cx="17.5" cy="15.5" r="4"/>
+        <path d="M6.5 15.5 10 8h5l2.5 7.5M10 8h4"/>
+        <circle cx="12" cy="12" r="11" class="ring"/>
+        <line x1="4.2" y1="4.2" x2="19.8" y2="19.8" class="ring"/>
+      </svg>
+    </p>
+
+    <div class="grid">
+      <ul class="col">
+        <li>
+          <span class="sym heads">
+            <i style="background:#0b40ca"></i><i style="background:#c30008"></i>
+            <i style="background:#419208"></i><i style="background:#050306"></i>
+            <i style="background:#f8d420"></i>
+          </span>
+          <span class="label">Trail head</span>
+        </li>
+        <li>
+          <span class="sym"><span class="line" style="background:#193d87"></span></span>
+          <span class="label">Blue “Breeze”</span>
+          <span class="stars" data-n="2"></span>
+        </li>
+        <li>
+          <span class="sym"><span class="line" style="background:#aa0d0a"></span></span>
+          <span class="label">Red “Rápido”</span>
+          <span class="stars" data-n="2"></span>
+        </li>
+        <li>
+          <span class="sym dots"><i></i><i></i><i></i></span>
+          <span class="label">Green “River”</span>
+          <span class="stars" data-n="3"></span>
+        </li>
+        <li>
+          <span class="sym"><span class="line dashed"></span></span>
+          <span class="label">Green “Ridge”</span>
+          <span class="stars" data-n="4"></span>
+        </li>
+        <li>
+          <span class="sym tris"><i></i><i></i><i></i></span>
+          <span class="label">Green “Mountain”</span>
+          <span class="stars" data-n="4"></span>
+        </li>
+        <li>
+          <span class="sym"><span class="line" style="background:#050306"></span></span>
+          <span class="label">Black “Diamond”</span>
+          <span class="stars" data-n="5"></span>
+        </li>
+        <li>
+          <span class="sym"><span class="line" style="background:#ecd14e"></span></span>
+          <span class="label">Yellow “Sunrise”</span>
+          <span class="stars" data-n="3"></span>
+        </li>
+      </ul>
+
+      <ul class="col">
+        <li><span class="sym"><b class="mk">M / K</b></span><span class="label">Miles / kilometres</span></li>
+        <li><span class="sym"><b class="badge round">G</b></span><span class="label">Gracia</span></li>
+        <li><span class="sym"><b class="badge round dotted">F</b></span><span class="label">Fitness centre</span></li>
+        <li><span class="sym"><b class="badge">T</b></span><span class="label">Tennis courts</span></li>
+        <li><span class="sym"><b class="badge">P</b></span><span class="label">Playground</span></li>
+        <li><span class="sym"><b class="gate">M</b></span><span class="label">Miramar gate</span></li>
+        <li><span class="sym"><b class="gate">DR</b></span><span class="label">Dos Rios gate</span></li>
+        <li><span class="sym"><b class="gate locked"></b></span><span class="label">Locked gate</span></li>
+        <li>
+          <span class="sym">
+            <svg class="drop" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M12 2c4.2 5.4 7 9.2 7 12.2A7 7 0 0 1 5 14.2C5 11.2 7.8 7.4 12 2z"/>
+            </svg>
+          </span>
+          <span class="label">Water pumping station</span>
+        </li>
+      </ul>
+    </div>
+
+    <p class="difficulty">
+      Difficulty · <span class="stars" data-n="1"></span> easiest
+      → <span class="stars" data-n="5"></span> most difficult
+    </p>
+    <p class="build">build <span id="build">?</span></p>
+  </div>
+</aside>
+
+<script src="app.js?v=24"></script>
 </body>
 </html>

@@ -23,10 +23,10 @@
 <div id="map"></div>
 <div id="panel">
   <h1>Paper map alignment</h1>
-  <label>Center latitude</label>  <input type="number" id="lat" step="0.00001" value="10.41499">
-  <label>Center longitude</label> <input type="number" id="lng" step="0.00001" value="-85.77207">
-  <label>Map width (metres)</label><input type="number" id="w" step="5" value="1100">
-  <label>Rotation (deg CW)</label> <input type="number" id="rot" step="0.5" value="0">
+  <label>Center latitude</label>  <input type="number" id="lat" step="0.00001" value="10.417722">
+  <label>Center longitude</label> <input type="number" id="lng" step="0.00001" value="-85.772692">
+  <label>Map width (metres)</label><input type="number" id="w" step="5" value="1425.9">
+  <label>Rotation (deg CW)</label> <input type="number" id="rot" step="0.5" value="-3.62">
   <label>Opacity <span id="opv">0.55</span></label>
   <input type="range" id="op" min="0" max="1" step="0.05" value="0.55">
   <div class="keys">Arrows = move · +/− = scale · [ ] = rotate<br>Shift = 10× finer</div>
@@ -35,7 +35,9 @@
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
-const IMG = 'panel.png', IW = 719, IH = 827;
+const IMG = '2k-map.webp', IW = 1536, IH = 2752;
+// the reference point is NOT the image centre on this sheet
+const REF_FX = 0.50045, REF_FY = 0.49018;
 const M_PER_DEG_LAT = 110574;
 const mPerDegLon = lat => 111320 * Math.cos(lat * Math.PI / 180);
 
@@ -49,7 +51,7 @@ const img = document.createElement('img');
 img.id = 'ov'; img.src = IMG; pane.appendChild(img);
 
 const el = id => document.getElementById(id);
-const S = { lat: 10.41499, lng: -85.77207, w: 1100, rot: 0 };
+const S = { lat: 10.417722, lng: -85.772692, w: 1425.9, rot: -3.62 };
 
 // unit vectors of the image axes expressed in local (east, north) metres
 function axes() {
@@ -64,7 +66,7 @@ function axes() {
 // image pixel -> LatLng
 function pxToLatLng(px, py) {
   const { ex, ey, s } = axes();
-  const dx = (px - IW / 2) * s, dy = (py - IH / 2) * s;
+  const dx = (px - IW * REF_FX) * s, dy = (py - IH * REF_FY) * s;
   const E = dx * ex[0] + dy * ey[0];
   const N = dx * ex[1] + dy * ey[1];
   return L.latLng(S.lat + N / M_PER_DEG_LAT, S.lng + E / mPerDegLon(S.lat));

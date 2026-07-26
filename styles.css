@@ -1,7 +1,19 @@
+/* Colours sampled straight out of the original scan. */
 :root {
-  --ok: #43d17a;
+  --paper: #fafbe3;   /* the map's own edge colour, so margins look intentional */
+  --ink:   #393939;
+  --bar:   #4d4d4d;
+  --rule:  #bebebe;
+  --green: #389401;
+  --star:  #fda213;
+  --water: #00a1d2;
+
+  --ok:   #43d17a;
   --warn: #e8b33a;
-  --bad: #e8624a;
+  --bad:  #e8624a;
+
+  --safe-t: env(safe-area-inset-top, 0px);
+  --safe-b: env(safe-area-inset-bottom, 0px);
 }
 
 * { box-sizing: border-box; }
@@ -11,23 +23,75 @@ html, body {
   height: 100%;
   overflow: hidden;
   overscroll-behavior: none;
-  touch-action: none;         /* no pinch-zoom, no double-tap-to-zoom, no scroll */
-  background: #e8e6dc;
-  color: #12160f;
+  touch-action: none;            /* no pinch, no double-tap zoom, no rubber-banding */
+  background: var(--paper);
+  color: var(--ink);
   font: 15px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   -webkit-text-size-adjust: 100%;
   -webkit-user-select: none;
   user-select: none;
 }
 
-#map {
+/* The map sheet: full screen width, taller than the viewport, centred and
+   clipped. Real SVG in the DOM — the browser rasterises it at native DPR. */
+#stage {
   position: fixed;
   inset: 0;
-  width: 100%;
-  height: 100%;
-  display: block;
+  overflow: hidden;
   touch-action: none;
 }
+
+#backdrop {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+}
+#backdrop img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transform: scale(1.35);          /* overscan so the blur has no soft edge */
+  filter: blur(38px) saturate(1.15) brightness(1.02);
+}
+
+#sheet {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 100%;
+  aspect-ratio: var(--sheet-aspect, 0.449);
+  transform-origin: 0 0;          /* JS drives translate+scale from here */
+  will-change: transform;
+}
+#art { position: absolute; inset: 0; }
+#art svg, #art img, #art picture { display: block; width: 100%; height: 100%; }
+
+/* position marker, placed as a percentage of the sheet */
+#me { position: absolute; left: 0; top: 0; transform: translate(-50%, -50%); }
+#me[hidden] { display: none; }
+
+#dot {
+  width: 18px; height: 18px;
+  border-radius: 50%;
+  background: #1a73e8;
+  border: 2.5px solid #fff;
+  box-shadow: 0 1px 5px rgba(0,0,0,.4);
+}
+
+/* Translucent accuracy halo, clamped so a good fix is still visible */
+#accuracy {
+  position: absolute;
+  left: 50%; top: 50%;
+  transform: translate(-50%, -50%);
+  min-width: 54px; min-height: 54px;
+  border-radius: 50%;
+  background: rgba(26,115,232,.16);
+  border: 1px solid rgba(26,115,232,.28);
+  pointer-events: none;
+}
+
+/* ---------- status bar ---------- */
+#status[hidden] { display: none; }
 
 #status {
   position: fixed;
@@ -36,8 +100,8 @@ html, body {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: calc(env(safe-area-inset-top, 0px) + 10px) 14px 10px;
-  background: rgba(18, 22, 15, .82);
+  padding: calc(var(--safe-t) + 9px) 14px 9px;
+  background: rgba(24, 28, 20, .88);
   -webkit-backdrop-filter: blur(12px);
   backdrop-filter: blur(12px);
   color: #f3f4ee;
@@ -45,18 +109,11 @@ html, body {
   font-variant-numeric: tabular-nums;
 }
 
-#statusText {
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
+#statusText { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 .dot {
   flex: none;
-  width: 9px;
-  height: 9px;
+  width: 9px; height: 9px;
   border-radius: 50%;
   background: #8d99a6;
   transition: background .3s;
@@ -64,3 +121,200 @@ html, body {
 .dot.ok   { background: var(--ok); box-shadow: 0 0 0 4px rgba(67, 209, 122, .18); }
 .dot.warn { background: var(--warn); }
 .dot.bad  { background: var(--bad); }
+
+/* ---------- legend trigger ---------- */
+#legendBtn {
+  position: fixed;
+  z-index: 10;
+  right: 14px;
+  bottom: calc(var(--safe-b) + 14px);
+  padding: 10px 16px;
+  border: 0;
+  border-radius: 22px;
+  background: rgba(24, 28, 20, .88);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+  box-shadow: 0 2px 12px rgba(0, 0, 0, .22);
+  color: #f3f4ee;
+  font: inherit;
+  font-size: 13.5px;
+  font-weight: 550;
+  letter-spacing: .02em;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+#legendBtn:active { background: rgba(24, 28, 20, .98); }
+
+/* ---------- drawer ---------- */
+#scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  background: rgba(0, 0, 0, .35);
+  animation: fade .2s ease-out;
+}
+#scrim[hidden] { display: none; }
+
+#drawer {
+  position: fixed;
+  z-index: 30;
+  left: 0; right: 0; bottom: 0;
+  margin: 0 auto;
+  max-width: 560px;
+  max-height: 82svh;
+  display: flex;
+  flex-direction: column;
+  background: var(--paper);
+  border-radius: 16px 16px 0 0;
+  box-shadow: 0 -6px 34px rgba(0, 0, 0, .3);
+  padding-bottom: var(--safe-b);
+  animation: rise .24s cubic-bezier(.32, .72, 0, 1);
+}
+#drawer[hidden] { display: none; }
+
+@keyframes rise { from { transform: translateY(100%); } }
+@keyframes fade { from { opacity: 0; } }
+@media (prefers-reduced-motion: reduce) {
+  #drawer, #scrim { animation: none; }
+}
+
+.grabber {
+  width: 38px; height: 4px;
+  margin: 8px auto 0;
+  border-radius: 2px;
+  background: rgba(0, 0, 0, .18);
+}
+
+.drawer-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px 6px 18px;
+}
+.drawer-head h2 {
+  flex: 1;
+  margin: 0;
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+}
+#drawerClose {
+  flex: none;
+  width: 32px; height: 32px;
+  display: grid; place-items: center;
+  border: 0; border-radius: 8px;
+  background: rgba(0, 0, 0, .07);
+  color: var(--ink);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+#drawerClose svg { width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; }
+
+.drawer-body {
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  touch-action: pan-y;           /* the one place scrolling is allowed */
+  padding: 0 14px 18px;
+}
+
+.note {
+  margin: 0 0 12px;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 11.5px;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  color: #5c6157;
+}
+.nobike { width: 16px; height: 16px; flex: none; fill: none; stroke: #c30008; stroke-width: 1.6; }
+.nobike .ring { stroke-width: 1.9; }
+
+/* ---------- legend content ---------- */
+.grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0 10px; }
+@media (max-width: 430px) { .grid { grid-template-columns: 1fr; } }
+
+.col { margin: 0; padding: 0; list-style: none; border: 1px solid var(--rule); }
+.col + .col { margin-top: 0; }
+@media (max-width: 430px) { .col + .col { margin-top: 10px; } }
+
+.col li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  min-height: 32px;
+  font-size: 13px;
+}
+.col li + li { border-top: 1px solid var(--rule); }
+
+.sym { flex: none; width: 60px; display: flex; align-items: center; justify-content: center; gap: 3px; }
+.label { flex: 1; min-width: 0; }
+
+.heads i { width: 8px; height: 8px; display: block; }
+
+.line { width: 44px; height: 2.5px; display: block; }
+.line.dashed { height: 0; background: none; border-top: 3px dashed var(--green); }
+
+.dots i { width: 7px; height: 7px; border-radius: 50%; background: var(--green); display: block; }
+.tris i {
+  width: 0; height: 0; display: block;
+  border-left: 5px solid transparent;
+  border-right: 5px solid transparent;
+  border-bottom: 9px solid var(--green);
+}
+
+.stars { flex: none; color: var(--star); letter-spacing: -.04em; white-space: nowrap; }
+.stars::before { content: "★"; }
+.stars[data-n="2"]::before { content: "★★"; }
+.stars[data-n="3"]::before { content: "★★★"; }
+.stars[data-n="4"]::before { content: "★★★★"; }
+.stars[data-n="5"]::before { content: "★★★★★"; }
+
+.mk { font-weight: 700; letter-spacing: .04em; }
+
+.badge {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 19px; height: 19px;
+  border: 1.4px solid var(--ink);
+  font-size: 11.5px;
+  font-weight: 500;
+}
+.badge.round { border-radius: 50%; }
+.badge.dotted::before {
+  content: "";
+  position: absolute;
+  top: -2px; left: -1px;
+  width: 4px; height: 4px;
+  border-radius: 50%;
+  background: var(--ink);
+}
+
+.gate {
+  display: block;
+  padding-bottom: 4px;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1;
+  border-bottom: 4px double var(--ink);
+}
+.gate.locked { width: 20px; border-bottom-width: 5px; }
+
+.drop { width: 15px; height: 15px; fill: var(--water); }
+
+.difficulty {
+  margin: 12px 0 0;
+  font-size: 12px;
+  color: #5c6157;
+}
+
+.build {
+  margin: 6px 0 0;
+  font-size: 10.5px;
+  font-variant-numeric: tabular-nums;
+  color: #9aa093;
+}

@@ -1,129 +1,222 @@
 'use strict';
 
+/* Bump on every edit. Shown in the legend drawer and logged to the console,
+ * so "am I actually looking at the new code?" is answerable at a glance —
+ * a stale service worker or HTTP cache will show an older stamp. */
+const BUILD = '2026-07-25 · 24';
+console.info('%c[marvista] build ' + BUILD, 'color:#3d7a24;font-weight:bold');
+
 /* ------------------------------------------------------------------ *
  * Georeference
  *
- * Derived by overlaying the paper map on satellite imagery (see
- * calibrate.html). The drawn panel sits inside map.png at offset
- * (37, 82) and is 719 x 827 px, so its centre is pixel (396.5, 495.5).
- *
- * Cross-checked against three distance labels printed on the map — the
- * 0.64 K entrance road, the 0.3 K link north of Dos Rios and the 2.1 K
- * Black "Diamond" loop — which all agree at 2.0 metres per pixel.
+ * Derived by overlaying the paper map on satellite imagery (calibrate.html)
+ * and checked against three distances printed on the map — the 0.64 K
+ * entrance road, the 0.3 K link north of Dos Rios and the 2.1 K Black
+ * "Diamond" loop — which all agree with a paper width of 1438 m.
  * ------------------------------------------------------------------ */
-const CAL = {
-  refPx: 396.5,
-  refPy: 495.5,
-  refLat: 10.417722,
-  refLon: -85.772692,
-  metresPerPixel: 2.0,
-  rotationDeg: -3.62     // positive = map drawn clockwise of north-up
-};
+const CENTRE = { lat: 10.417722, lon: -85.772692 };
 
-// The drawn map inside map.png. Outside this rectangle we are off the map.
-const PANEL = { x: 37, y: 82, w: 719, h: 827 };
+/* The sheet says how much ground it covers and where the reference point sits
+ * within it, as a fraction — it is NOT the image centre here.
+ *
+ * 2k-map is an extended redraw on a taller canvas. Its geometry was
+ * measured, not assumed — ten trail-head squares matched against the scan give
+ *     x_ai = 1.0085 * x_paper - 0.0038
+ *     y_ai = 0.64424 * y_paper + 0.16806
+ * predicting every point to within 0.0012 of the sheet (about 3 px). From that:
+ *   ground width  = 1438 / 1.0085          = 1425.9 m
+ *   ground height = 1654 / 0.64424         = 2567.4 m
+ *   reference at  = (0.50045, 0.49018)     — 27 px above the image centre,
+ *                                            i.e. the extension is slightly
+ *                                            deeper below than above.
+ */
+const SHEET = { src: '2k-map.webp', w: 1425.9, h: 2567.4, fx: 0.50045, fy: 0.49018 };
+
+const CAL = {
+  centreLat: CENTRE.lat,
+  centreLon: CENTRE.lon,
+  widthMetres: SHEET.w,
+  rotationDeg: -3.62      // positive = drawn clockwise of north-up
+};
+const SHEET_H = SHEET.h;
 
 const M_PER_DEG_LAT = 110574;
 const _t = CAL.rotationDeg * Math.PI / 180;
-const AX = [Math.cos(_t), -Math.sin(_t)];   // image +x, in (east, north) metres
-const AY = [-Math.sin(_t), -Math.cos(_t)];  // image +y
-const MPD_LON = 111320 * Math.cos(CAL.refLat * Math.PI / 180);
+const AX = [Math.cos(_t), -Math.sin(_t)];   // sheet +x, in (east, north) metres
+const AY = [-Math.sin(_t), -Math.cos(_t)];  // sheet +y
+const MPD_LON = 111320 * Math.cos(CAL.centreLat * Math.PI / 180);
 
-/** lat/lon -> map.png pixel coordinates */
-function toPixel(lat, lon) {
-  const E = (lon - CAL.refLon) * MPD_LON;
-  const N = (lat - CAL.refLat) * M_PER_DEG_LAT;
+/** lat/lon -> position as a fraction of the sheet, {fx, fy} in 0..1 */
+function toFraction(lat, lon) {
+  const E = (lon - CAL.centreLon) * MPD_LON;
+  const N = (lat - CAL.centreLat) * M_PER_DEG_LAT;
   return {
-    x: CAL.refPx + (E * AX[0] + N * AX[1]) / CAL.metresPerPixel,
-    y: CAL.refPy + (E * AY[0] + N * AY[1]) / CAL.metresPerPixel
+    fx: SHEET.fx + (E * AX[0] + N * AX[1]) / CAL.widthMetres,
+    fy: SHEET.fy + (E * AY[0] + N * AY[1]) / SHEET_H
   };
 }
 
-const onMap = p => p.x >= PANEL.x && p.x <= PANEL.x + PANEL.w &&
-                   p.y >= PANEL.y && p.y <= PANEL.y + PANEL.h;
+const onSheet = f => f.fx >= 0 && f.fx <= 1 && f.fy >= 0 && f.fy <= 1;
 
 /* ------------------------------------------------------------------ */
 
-const cv = document.getElementById('map');
-const ctx = cv.getContext('2d');
-const img = new Image();
-const elDot = document.getElementById('statusDot');
-const elText = document.getElementById('statusText');
+const $ = id => document.getElementById(id);
+const art = $('art'), me = $('me'), accuracy = $('accuracy');
+const elDot = $('statusDot'), elText = $('statusText');
 
-let imgReady = false;
-let fix = null;                        // { lat, lon, accuracy, t }
-let scale = 1, originX = 0, originY = 0;   // map.png -> screen
+let fix = null;
 
-function layout() {
-  const dpr = Math.min(window.devicePixelRatio || 1, 2.5);
-  const w = cv.clientWidth, h = cv.clientHeight;
-  cv.width = Math.round(w * dpr);
-  cv.height = Math.round(h * dpr);
-  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-
-  if (!imgReady) return;
-  scale = Math.min(w / img.width, h / img.height);
-  originX = (w - img.width * scale) / 2;
-  originY = (h - img.height * scale) / 2;
-  draw();
-}
-
-function draw() {
-  if (!imgReady) return;
-  const w = cv.clientWidth, h = cv.clientHeight;
-
-  ctx.clearRect(0, 0, w, h);
-  ctx.fillStyle = '#e8e6dc';
-  ctx.fillRect(0, 0, w, h);
-  ctx.imageSmoothingQuality = 'high';
-  ctx.drawImage(img, originX, originY, img.width * scale, img.height * scale);
-
-  if (!fix) return;
-  const p = toPixel(fix.lat, fix.lon);
-  if (!onMap(p)) return;
-
-  const x = originX + p.x * scale;
-  const y = originY + p.y * scale;
-
-  // GPS accuracy, drawn at the map's real scale
-  const r = (fix.accuracy / CAL.metresPerPixel) * scale;
-  if (r > 3) {
-    ctx.beginPath();
-    ctx.arc(x, y, r, 0, Math.PI * 2);
-    ctx.fillStyle = 'rgba(40,120,255,.15)';
-    ctx.fill();
-    ctx.strokeStyle = 'rgba(40,120,255,.4)';
-    ctx.lineWidth = 1;
-    ctx.stroke();
+/* Real DOM, not a canvas: the browser rasterises at the device's own pixel
+ * density, so the map stays sharp when zoomed. */
+(async () => {
+  const src = SHEET.src;
+  try {
+    /* WebP only — a ninth the size of the PNG (249 KB vs 2243 KB) with 1.6%
+     * error on the drawn lines. Supported since iOS 14, so a PNG fallback
+     * would just be 2.2 MB of dead weight in the offline cache. */
+    art.innerHTML = `<img src="${src}" alt="">`;
+    document.documentElement.style.setProperty('--sheet-aspect', CAL.widthMetres / SHEET_H);
+    requestAnimationFrame(applyView);   // centre the sheet once it has a size
+    startGeolocation();
+  } catch (e) {
+    setStatus('bad', 'Could not load ' + src);
   }
+})();
 
-  ctx.beginPath();
-  ctx.arc(x, y, 10, 0, Math.PI * 2);
-  ctx.fillStyle = '#fff';
-  ctx.fill();
-  ctx.beginPath();
-  ctx.arc(x, y, 7, 0, Math.PI * 2);
-  ctx.fillStyle = '#1a73e8';
-  ctx.fill();
+/* ------------------------------------------------------------------ */
+
+function place() {
+  if (!fix) { me.hidden = true; return; }
+  const f = toFraction(fix.lat, fix.lon);
+  if (!onSheet(f)) { me.hidden = true; return; }   // never clamp to the edge
+
+  me.hidden = false;
+  me.style.left = (f.fx * 100) + '%';
+  me.style.top  = (f.fy * 100) + '%';
+
+  /* Accuracy halo, true to the map's scale. At this zoom the whole sheet is
+   * 1438 m across, so a good fix is only a few pixels — CSS clamps it to a
+   * visible minimum, exactly as Google Maps does, and it grows honestly as
+   * the fix degrades. */
+  const px = (fix.accuracy / CAL.widthMetres) * sheetWidthPx();
+  accuracy.style.width = accuracy.style.height = (px * 2) + 'px';
 }
 
+// layout width, NOT getBoundingClientRect — that would double-count the zoom
+const sheetWidthPx = () => $('sheet').offsetWidth || 0;
+
+/* ------------------------------------------------------------------ *
+ * Pan and zoom
+ *
+ * Capped at 2x: the map is a fixed drawing, so beyond that you are just
+ * magnifying pixels. The marker lives inside the sheet, so it scales and
+ * pans with the artwork for free.
+ * ------------------------------------------------------------------ */
+const MAX_ZOOM = 2;
+const stage = $('stage'), sheetEl = $('sheet');
+const view = { s: 1, tx: 0, ty: 0 };
+
+function clampView() {
+  const sw = sheetEl.offsetWidth * view.s;
+  const sh = sheetEl.offsetHeight * view.s;
+  const vw = stage.clientWidth, vh = stage.clientHeight;
+  view.tx = sw <= vw ? (vw - sw) / 2 : Math.min(0, Math.max(vw - sw, view.tx));
+  view.ty = sh <= vh ? (vh - sh) / 2 : Math.min(0, Math.max(vh - sh, view.ty));
+}
+
+function applyView() {
+  clampView();
+  sheetEl.style.transform = `translate(${view.tx}px,${view.ty}px) scale(${view.s})`;
+}
+
+/** zoom about a point in stage coordinates, so the map stays under the fingers */
+function zoomAt(cx, cy, factor) {
+  const next = Math.min(MAX_ZOOM, Math.max(1, view.s * factor));
+  const k = next / view.s;
+  view.tx = cx - (cx - view.tx) * k;
+  view.ty = cy - (cy - view.ty) * k;
+  view.s = next;
+  applyView();
+}
+
+const pointers = new Map();
+let pinchDist = 0, moved = 0, lastTap = 0;
+
+stage.addEventListener('pointerdown', e => {
+  stage.setPointerCapture(e.pointerId);
+  pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  moved = 0;
+  if (pointers.size === 2) {
+    const [a, b] = [...pointers.values()];
+    pinchDist = Math.hypot(a.x - b.x, a.y - b.y);
+  }
+});
+
+stage.addEventListener('pointermove', e => {
+  const prev = pointers.get(e.pointerId);
+  if (!prev) return;
+  const cur = { x: e.clientX, y: e.clientY };
+  pointers.set(e.pointerId, cur);
+  const r = stage.getBoundingClientRect();
+
+  if (pointers.size === 2) {
+    const [a, b] = [...pointers.values()];
+    const d = Math.hypot(a.x - b.x, a.y - b.y);
+    if (pinchDist > 0) {
+      zoomAt((a.x + b.x) / 2 - r.left, (a.y + b.y) / 2 - r.top, d / pinchDist);
+    }
+    pinchDist = d;
+    moved = 99;
+  } else {
+    const dx = cur.x - prev.x, dy = cur.y - prev.y;
+    moved += Math.hypot(dx, dy);
+    view.tx += dx; view.ty += dy;
+    applyView();
+  }
+});
+
+function releasePointer(e) {
+  pointers.delete(e.pointerId);
+  if (pointers.size < 2) pinchDist = 0;
+}
+stage.addEventListener('pointerup', e => {
+  releasePointer(e);
+  const now = performance.now();
+  if (moved < 8) {
+    if (now - lastTap < 300) {                       // double-tap toggles zoom
+      const r = stage.getBoundingClientRect();
+      zoomAt(e.clientX - r.left, e.clientY - r.top, view.s > 1 ? 1 / view.s : MAX_ZOOM);
+      lastTap = 0;
+    } else lastTap = now;
+  }
+});
+stage.addEventListener('pointercancel', releasePointer);
+
+stage.addEventListener('wheel', e => {
+  e.preventDefault();
+  const r = stage.getBoundingClientRect();
+  zoomAt(e.clientX - r.left, e.clientY - r.top, Math.exp(-e.deltaY * 0.0015));
+}, { passive: false });
+
+addEventListener('resize', applyView);
+
+/* No chrome while it is working. The bar appears only when there is something
+ * the walker needs to know — no fix, no permission, off the map. */
 function setStatus(kind, text) {
+  const bar = document.getElementById('status');
+  if (!kind || kind === 'ok') { bar.hidden = true; return; }
+  bar.hidden = false;
   elDot.className = 'dot ' + kind;
   elText.textContent = text;
 }
-
-/* ------------------------------------------------------------------ */
 
 function onFix(pos) {
   const c = pos.coords;
   fix = { lat: c.latitude, lon: c.longitude, accuracy: c.accuracy, t: Date.now() };
 
-  if (!onMap(toPixel(fix.lat, fix.lon))) {
-    setStatus('warn', "You're outside the area this map covers");
-  } else {
-    setStatus(fix.accuracy <= 25 ? 'ok' : 'warn', `± ${Math.round(fix.accuracy)} m`);
-  }
-  draw();
+  setStatus(onSheet(toFraction(fix.lat, fix.lon)) ? 'ok' : 'warn',
+            "You're outside the area this map covers");
+  place();
 }
 
 function onGeoError(err) {
@@ -141,14 +234,25 @@ function startGeolocation() {
   });
 }
 
+/* ------------------------------------------------------------------ *
+ * Legend drawer
+ * ------------------------------------------------------------------ */
+const drawer = $('drawer'), scrim = $('scrim'), legendBtn = $('legendBtn');
+
+function setDrawer(open) {
+  drawer.hidden = !open;
+  scrim.hidden = !open;
+  legendBtn.setAttribute('aria-expanded', String(open));
+  legendBtn.hidden = open;
+}
+
+$('build').textContent = BUILD;
+legendBtn.addEventListener('click', () => setDrawer(true));
+scrim.addEventListener('click', () => setDrawer(false));
+$('drawerClose').addEventListener('click', () => setDrawer(false));
+document.addEventListener('keydown', e => { if (e.key === 'Escape') setDrawer(false); });
+
 /* ------------------------------------------------------------------ */
-
-img.addEventListener('load', () => { imgReady = true; layout(); startGeolocation(); });
-img.addEventListener('error', () => setStatus('bad', 'Could not load map.png'));
-img.src = 'map.png';
-
-window.addEventListener('resize', layout);
-window.addEventListener('orientationchange', () => setTimeout(layout, 250));
 
 /* Keep the page fixed. `touch-action: none` covers Chrome and Android, but
  * iOS Safari ignores both that and `user-scalable=no` for pinch, and desktop
@@ -159,11 +263,32 @@ for (const type of ['gesturestart', 'gesturechange', 'gestureend']) {
 document.addEventListener('wheel', e => { if (e.ctrlKey) e.preventDefault(); }, { passive: false });
 document.addEventListener('dblclick', e => e.preventDefault());
 
-// Go grey if the fix stops updating, so a frozen dot never looks live.
 setInterval(() => {
   if (fix && Date.now() - fix.t > 30000) setStatus('warn', 'GPS signal lost');
 }, 5000);
 
+/* ------------------------------------------------------------------ *
+ * Offline caching — OFF while we iterate in the browser.
+ *
+ * A registered worker keeps serving its own cached copy, which silently
+ * hides edits. Removing the register() call is not enough: one already
+ * installed stays in control, so we actively unregister and bin the
+ * caches. Flip OFFLINE_CACHE back to true before this goes on a phone.
+ * ------------------------------------------------------------------ */
+const OFFLINE_CACHE = false;
+
 if ('serviceWorker' in navigator) {
-  window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
+  if (OFFLINE_CACHE) {
+    window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
+  } else {
+    navigator.serviceWorker.getRegistrations()
+      .then(rs => {
+        if (rs.length) console.warn(`[marvista] removing ${rs.length} service worker(s) — reload once more if you still see stale files`);
+        return Promise.all(rs.map(r => r.unregister()));
+      })
+      .catch(() => {});
+    if (window.caches) {
+      caches.keys().then(ks => Promise.all(ks.map(k => caches.delete(k)))).catch(() => {});
+    }
+  }
 }
