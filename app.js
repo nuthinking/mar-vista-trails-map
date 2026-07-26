@@ -281,26 +281,7 @@ stage.addEventListener('wheel', e => {
   zoomAt(e.clientX - r.left, e.clientY - r.top, Math.exp(-e.deltaY * 0.0015));
 }, { passive: false });
 
-/* iOS standalone reports a shorter viewport for the first layout, then grows
- * to full height once the status-bar inset is applied. We centred once at
- * script end and never again, so the sheet stayed centred on the stale height
- * — sitting too high, with an oversized gap underneath.
- *
- * Re-centre whenever the stage actually changes size: window resize misses
- * some of these transitions on iOS, so visualViewport, orientation and
- * pageshow are covered too, plus a couple of settling ticks after load. */
-let lastStage = '';
-function reflowIfResized() {
-  const key = stage.clientWidth + 'x' + stage.clientHeight;
-  if (key === lastStage) return;
-  lastStage = key;
-  applyView();
-}
-addEventListener('resize', reflowIfResized);
-addEventListener('orientationchange', () => setTimeout(reflowIfResized, 250));
-addEventListener('pageshow', reflowIfResized);
-visualViewport?.addEventListener('resize', reflowIfResized);
-for (const t of [0, 120, 400, 1000]) setTimeout(reflowIfResized, t);
+addEventListener('resize', applyView);
 
 /* No chrome while it is working. The bar appears only when there is something
  * the walker needs to know — no fix, no permission, off the map. */

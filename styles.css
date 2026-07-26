@@ -18,6 +18,15 @@
   --safe-r: env(safe-area-inset-right, 0px);
 }
 
+/* Standalone does not include the status bar in the viewport, so the top inset
+   it reports has already been applied — padding by it again double-counts.
+   This is the documented pattern, not a workaround:
+   https://gist.github.com/cvan/6c022ff9b14cf8840e9d28730f75fc14
+   The home indicator IS a real overlap, so --safe-b stays. */
+@media (display-mode: standalone) {
+  :root { --safe-t: 0px; }
+}
+
 * { box-sizing: border-box; }
 
 html, body {

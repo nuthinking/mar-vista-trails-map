@@ -5,7 +5,11 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#186060">
 <meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<!-- NOT black-translucent: in standalone iOS puts the status bar beside the
+     page rather than over it (the viewport is already short by the inset), so
+     translucency never applies — and it forces WHITE status-bar text, which is
+     unreadable on this cream. "default" gives dark text on a light bar. -->
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="Mar Vista Trails">
 <title>Mar Vista Trails</title>
 <link rel="manifest" href="manifest.webmanifest">
