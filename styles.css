@@ -42,6 +42,8 @@ html, body {
   overflow: hidden;
   touch-action: none;
 }
+#stage.pannable { cursor: grab; }
+#stage.pannable.dragging { cursor: grabbing; }
 
 #backdrop {
   position: absolute;
@@ -56,17 +58,26 @@ html, body {
   filter: blur(38px) saturate(1.15) brightness(1.02);
 }
 
+/* Mobile first: on a phone the sheet fills the width and overflows top and
+   bottom. On a wide window that would make the map absurdly large, so it is
+   also capped at the width that makes it exactly viewport-tall — i.e. it
+   switches from fill-width to fit-window without a breakpoint. */
 #sheet {
   position: absolute;
   left: 0;
   top: 0;
-  width: 100%;
+  width: min(100%, calc(100svh * var(--sheet-aspect, 0.5554)));
   aspect-ratio: var(--sheet-aspect, 0.449);
   transform-origin: 0 0;          /* JS drives translate+scale from here */
   will-change: transform;
 }
 #art { position: absolute; inset: 0; }
 #art svg, #art img, #art picture { display: block; width: 100%; height: 100%; }
+#art img {
+  -webkit-user-drag: none;      /* belt and braces with draggable="false" */
+  user-select: none;
+  pointer-events: none;         /* gestures belong to #stage, not the image */
+}
 
 /* position marker, placed as a percentage of the sheet */
 #me { position: absolute; left: 0; top: 0; transform: translate(-50%, -50%); }

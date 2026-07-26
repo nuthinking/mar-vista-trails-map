@@ -3,7 +3,7 @@
 /* Logged to the console so "am I actually looking at the new code?" is
  * answerable at a glance. Cache-busting itself is the service worker's job —
  * see CACHE in sw.js — not a query string that has to be hand-edited. */
-const BUILD = '2026-07-25 · 50';
+const BUILD = '2026-07-26 · 53';
 console.info('%c[marvista] build ' + BUILD, 'color:#3d7a24;font-weight:bold');
 
 /* ------------------------------------------------------------------ *
@@ -74,7 +74,11 @@ let fix = null;
     /* WebP only — a ninth the size of the PNG (249 KB vs 2243 KB) with 1.6%
      * error on the drawn lines. Supported since iOS 14, so a PNG fallback
      * would just be 2.2 MB of dead weight in the offline cache. */
-    art.innerHTML = `<img src="${src}" alt="">`;
+    /* draggable=false matters: without it a mouse drag starts the browser's
+     * native image drag, ghost preview and all, and our pointer gesture never
+     * completes. Touch has no such behaviour, which is why it only broke on
+     * desktop. */
+    art.innerHTML = `<img src="${src}" alt="" draggable="false">`;
     document.documentElement.style.setProperty('--sheet-aspect', CAL.widthMetres / SHEET_H);
     startGeolocation();
   } catch (e) {
@@ -173,6 +177,10 @@ const scaleTip = () => { if (tip) tip.style.transform = `translate(-50%,-100%) s
  * pans with the artwork for free.
  * ------------------------------------------------------------------ */
 const MAX_ZOOM = 2;
+/* Zoom is a touch gesture. On desktop the map already fits the window, so
+ * wheel-zoom just fights the user for no gain — pointer:coarse keeps it for
+ * phones and tablets only. */
+const CAN_ZOOM = matchMedia('(pointer: coarse)').matches;
 const stage = $('stage'), sheetEl = $('sheet');
 const view = { s: 1, tx: 0, ty: 0 };
 
@@ -182,6 +190,10 @@ function clampView() {
   const vw = stage.clientWidth, vh = stage.clientHeight;
   view.tx = sw <= vw ? (vw - sw) / 2 : Math.min(0, Math.max(vw - sw, view.tx));
   view.ty = sh <= vh ? (vh - sh) / 2 : Math.min(0, Math.max(vh - sh, view.ty));
+  /* Only offer the grab cursor when there is somewhere to go. On desktop the
+   * map fits at 1x, so dragging is a no-op and the cursor should not imply
+   * otherwise; zoom in and it becomes draggable again. */
+  stage.classList.toggle('pannable', sw > vw + 1 || sh > vh + 1);
 }
 
 function applyView() {
@@ -207,6 +219,7 @@ stage.addEventListener('pointerdown', e => {
   stage.setPointerCapture(e.pointerId);
   pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
   moved = 0;
+  stage.classList.add('dragging');
   if (pointers.size === 2) {
     const [a, b] = [...pointers.values()];
     pinchDist = Math.hypot(a.x - b.x, a.y - b.y);
@@ -223,7 +236,7 @@ stage.addEventListener('pointermove', e => {
   if (pointers.size === 2) {
     const [a, b] = [...pointers.values()];
     const d = Math.hypot(a.x - b.x, a.y - b.y);
-    if (pinchDist > 0) {
+    if (pinchDist > 0 && CAN_ZOOM) {
       zoomAt((a.x + b.x) / 2 - r.left, (a.y + b.y) / 2 - r.top, d / pinchDist);
     }
     pinchDist = d;
@@ -239,6 +252,7 @@ stage.addEventListener('pointermove', e => {
 function releasePointer(e) {
   pointers.delete(e.pointerId);
   if (pointers.size < 2) pinchDist = 0;
+  if (pointers.size === 0) stage.classList.remove('dragging');
 }
 stage.addEventListener('pointerup', e => {
   releasePointer(e);
@@ -251,7 +265,7 @@ stage.addEventListener('pointerup', e => {
       return;
     }
     hideTip();
-    if (now - lastTap < 300) {                       // double-tap toggles zoom
+    if (CAN_ZOOM && now - lastTap < 300) {           // double-tap toggles zoom
       const r = stage.getBoundingClientRect();
       zoomAt(e.clientX - r.left, e.clientY - r.top, view.s > 1 ? 1 / view.s : MAX_ZOOM);
       lastTap = 0;
@@ -261,6 +275,7 @@ stage.addEventListener('pointerup', e => {
 stage.addEventListener('pointercancel', releasePointer);
 
 stage.addEventListener('wheel', e => {
+  if (!CAN_ZOOM) return;              // desktop: leave the wheel alone
   e.preventDefault();
   const r = stage.getBoundingClientRect();
   zoomAt(e.clientX - r.left, e.clientY - r.top, Math.exp(-e.deltaY * 0.0015));
