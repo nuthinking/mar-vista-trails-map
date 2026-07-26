@@ -3,7 +3,7 @@
 /* Bump on every edit. Logged to the console so "am I actually looking at the
  * new code?" is answerable at a glance — a stale service worker or HTTP cache
  * will show an older stamp. */
-const BUILD = '2026-07-25 · 38';
+const BUILD = '2026-07-25 · 40';
 console.info('%c[marvista] build ' + BUILD, 'color:#3d7a24;font-weight:bold');
 
 /* ------------------------------------------------------------------ *
