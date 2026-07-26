@@ -3,7 +3,7 @@
 /* Logged to the console so "am I actually looking at the new code?" is
  * answerable at a glance. Cache-busting itself is the service worker's job —
  * see CACHE in sw.js — not a query string that has to be hand-edited. */
-const BUILD = '2026-07-25 · 44';
+const BUILD = '2026-07-25 · 50';
 console.info('%c[marvista] build ' + BUILD, 'color:#3d7a24;font-weight:bold');
 
 /* ------------------------------------------------------------------ *
@@ -306,13 +306,112 @@ function startGeolocation() {
  * Legend drawer
  * ------------------------------------------------------------------ */
 const drawer = $('drawer'), scrim = $('scrim'), legendBtn = $('legendBtn');
+const drawerBody = document.querySelector('.drawer-body');
+
+/* Drag-to-dismiss, in the manner of Vaul.
+ *
+ *  - the sheet tracks the finger 1:1 downward
+ *  - dragging up rubber-bands instead of detaching
+ *  - release dismisses on DISTANCE (a third of the way) or VELOCITY (a flick),
+ *    so a short fast flick works as well as a slow long drag
+ *  - the scrim fades in proportion, so the map reappears as you pull
+ *
+ * A drag only starts from the handle or header, or from the body when it is
+ * already scrolled to the top — otherwise the list would refuse to scroll. */
+const EASE = 'cubic-bezier(.32,.72,0,1)';
+const DISMISS_FRACTION = 0.3;      // of sheet height
+const DISMISS_VELOCITY = 0.55;     // px per ms
+
+let dragging = false, startY = 0, offset = 0;
+/* Velocity from a short window of samples, not from the single last move.
+ * One big jump would otherwise read as an enormous flick, and a fast drag
+ * that stops before release would still dismiss. */
+let samples = [];
+const VELOCITY_WINDOW = 90;        // ms
+
+function velocityNow() {
+  const now = performance.now();
+  const recent = samples.filter(p => now - p.t <= VELOCITY_WINDOW);
+  if (recent.length < 2) return 0;
+  const a = recent[0], b = recent[recent.length - 1];
+  return b.t > a.t ? (b.y - a.y) / (b.t - a.t) : 0;
+}
+
+/* The sheet is drawn OVERHANG taller than it looks (see styles.css), so the
+ * visible height — the one every threshold should use — subtracts it. */
+const OVERHANG = 80;
+const sheetHeight = () =>
+  Math.max(1, drawer.getBoundingClientRect().height - OVERHANG);
+
+/* progress: 1 fully open, 0 fully dismissed */
+function setOffset(y, animate) {
+  const p = Math.max(0, Math.min(1, 1 - y / sheetHeight()));
+  drawer.style.transition = animate
+    ? `transform .34s ${EASE}, box-shadow .34s ${EASE}` : 'none';
+  drawer.style.transform = `translateY(${y}px)`;
+  /* The shadow fades out with the sheet. Left at full strength it would still
+   * be casting when the element unmounts, which reads as a jump. */
+  drawer.style.boxShadow = `0 -6px 34px rgba(40, 40, 25, ${(0.18 * p).toFixed(3)})`;
+  scrim.style.transition = animate ? `opacity .34s ${EASE}` : 'none';
+  scrim.style.opacity = String(p);
+}
 
 function setDrawer(open) {
-  drawer.hidden = !open;
-  scrim.hidden = !open;
   legendBtn.setAttribute('aria-expanded', String(open));
-  $('footbar').hidden = open;
+  if (open) {
+    /* The footer bar is NOT hidden — it stays put and the sheet slides over
+     * it, so dragging down reveals it progressively instead of popping it
+     * back the instant the drawer finishes closing. */
+    drawer.hidden = false;
+    scrim.hidden = false;
+    setOffset(sheetHeight(), false);
+    drawer.offsetHeight;                    // flush, so the next set animates
+    setOffset(0, true);
+  } else {
+    setOffset(sheetHeight(), true);
+    const done = () => {
+      drawer.hidden = true;
+      scrim.hidden = true;
+      drawer.style.transition = 'none';
+      drawer.removeEventListener('transitionend', done);
+    };
+    drawer.addEventListener('transitionend', done);
+    setTimeout(done, 400);                  // transitionend can be skipped
+  }
 }
+
+drawer.addEventListener('pointerdown', e => {
+  if (drawer.hidden) return;
+  // let the list scroll unless it is already at the top
+  if (drawerBody.contains(e.target) && drawerBody.scrollTop > 0) return;
+  dragging = true;
+  startY = e.clientY;
+  offset = 0;
+  samples = [{ y: e.clientY, t: performance.now() }];
+  drawer.setPointerCapture(e.pointerId);
+});
+
+drawer.addEventListener('pointermove', e => {
+  if (!dragging) return;
+  let dy = e.clientY - startY;
+  if (dy < 0) dy = Math.max(-OVERHANG, dy / 4);   // rubber band, never past the overhang
+  offset = dy;
+  samples.push({ y: e.clientY, t: performance.now() });
+  if (samples.length > 6) samples.shift();
+  setOffset(dy, false);
+});
+
+function endDrag(e) {
+  if (!dragging) return;
+  dragging = false;
+  try { drawer.releasePointerCapture(e.pointerId); } catch {}
+  const far = offset > sheetHeight() * DISMISS_FRACTION;
+  const flick = velocityNow() > DISMISS_VELOCITY && offset > 24;
+  if (far || flick) setDrawer(false);
+  else setOffset(0, true);
+}
+drawer.addEventListener('pointerup', endDrag);
+drawer.addEventListener('pointercancel', endDrag);
 
 legendBtn.addEventListener('click', () => setDrawer(true));
 scrim.addEventListener('click', () => setDrawer(false));
