@@ -3,7 +3,7 @@
 /* Bump on every edit. Shown in the legend drawer and logged to the console,
  * so "am I actually looking at the new code?" is answerable at a glance —
  * a stale service worker or HTTP cache will show an older stamp. */
-const BUILD = '2026-07-25 · 24';
+const BUILD = '2026-07-25 · 28';
 console.info('%c[marvista] build ' + BUILD, 'color:#3d7a24;font-weight:bold');
 
 /* ------------------------------------------------------------------ *
@@ -76,9 +76,9 @@ let fix = null;
      * would just be 2.2 MB of dead weight in the offline cache. */
     art.innerHTML = `<img src="${src}" alt="">`;
     document.documentElement.style.setProperty('--sheet-aspect', CAL.widthMetres / SHEET_H);
-    requestAnimationFrame(applyView);   // centre the sheet once it has a size
     startGeolocation();
   } catch (e) {
+    console.error('[marvista]', e);      // never swallow it silently again
     setStatus('bad', 'Could not load ' + src);
   }
 })();
@@ -106,6 +106,66 @@ function place() {
 const sheetWidthPx = () => $('sheet').offsetWidth || 0;
 
 /* ------------------------------------------------------------------ *
+ * Places
+ *
+ * These used to be legend rows, which meant reading a key and then hunting
+ * for the badge. Now the badge itself is the control: tap it and it tells
+ * you what it is. Positions come from the paper-map pixels measured during
+ * calibration, pushed through the same fit as everything else.
+ *
+ * Hit-testing is by PROXIMITY, not by hit boxes. The fitness centre, Gracia
+ * and the Dos Rios gate sit within ~30 px of one another at 1x, so overlapping
+ * circles would fight over the tap and whichever was later in the DOM would
+ * win. Nearest-wins is unambiguous, and the threshold is in screen pixels so
+ * it stays a comfortable finger target at any zoom.
+ * ------------------------------------------------------------------ */
+const PLACES = [
+  { name: 'Miramar gate',   fx: 0.1722, fy: 0.5326 },
+  { name: 'Locked gate',    fx: 0.1582, fy: 0.6144 },
+  { name: 'Tennis courts',  fx: 0.1912, fy: 0.5985 },
+  { name: 'Fitness centre', fx: 0.2711, fy: 0.6368 },
+  { name: 'Gracia',         fx: 0.3048, fy: 0.6499 },
+  { name: 'Dos Rios gate',  fx: 0.3423, fy: 0.6456 },
+  { name: 'Playground',     fx: 0.4745, fy: 0.5389 },
+  { name: 'Water pumping station', fx: 0.6326, fy: 0.3105 },
+  { name: 'Water pumping station', fx: 0.3737, fy: 0.5520 }
+];
+
+let tip = null;
+
+const TAP_RADIUS = 32;        // screen px
+
+function buildPlaces() {
+  tip = document.createElement('div');
+  tip.id = 'tip';
+  tip.hidden = true;
+  sheetEl.appendChild(tip);
+}
+
+/** nearest place to a tap, in screen pixels, or null */
+function placeNear(clientX, clientY) {
+  const r = sheetEl.getBoundingClientRect();     // includes the zoom transform
+  let best = null, bestD = TAP_RADIUS;
+  for (const p of PLACES) {
+    const d = Math.hypot(r.left + p.fx * r.width - clientX,
+                         r.top  + p.fy * r.height - clientY);
+    if (d < bestD) { bestD = d; best = p; }
+  }
+  return best;
+}
+
+function showTip(p) {
+  tip.textContent = p.name;
+  tip.style.left = (p.fx * 100) + '%';
+  tip.style.top  = (p.fy * 100) + '%';
+  tip.hidden = false;
+  scaleTip();
+}
+const hideTip = () => { if (tip) tip.hidden = true; };
+// keep the label legible rather than letting it grow with the map
+const scaleTip = () => { if (tip) tip.style.transform = `translate(-50%,-100%) scale(${1 / view.s})`; };
+
+/* ------------------------------------------------------------------ *
  * Pan and zoom
  *
  * Capped at 2x: the map is a fixed drawing, so beyond that you are just
@@ -127,6 +187,7 @@ function clampView() {
 function applyView() {
   clampView();
   sheetEl.style.transform = `translate(${view.tx}px,${view.ty}px) scale(${view.s})`;
+  scaleTip();
 }
 
 /** zoom about a point in stage coordinates, so the map stays under the fingers */
@@ -183,6 +244,13 @@ stage.addEventListener('pointerup', e => {
   releasePointer(e);
   const now = performance.now();
   if (moved < 8) {
+    const hit = placeNear(e.clientX, e.clientY);
+    if (hit) {
+      showTip(hit);
+      lastTap = 0;            // never zoom out from under a badge you just named
+      return;
+    }
+    hideTip();
     if (now - lastTap < 300) {                       // double-tap toggles zoom
       const r = stage.getBoundingClientRect();
       zoomAt(e.clientX - r.left, e.clientY - r.top, view.s > 1 ? 1 / view.s : MAX_ZOOM);
@@ -292,3 +360,13 @@ if ('serviceWorker' in navigator) {
     }
   }
 }
+
+/* ------------------------------------------------------------------ *
+ * Start
+ *
+ * Runs last so every const above is initialised. Deliberately not inside
+ * requestAnimationFrame: a background tab is never given a frame, and the
+ * places would silently never be built.
+ * ------------------------------------------------------------------ */
+buildPlaces();
+applyView();

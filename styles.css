@@ -318,3 +318,38 @@ html, body {
   font-variant-numeric: tabular-nums;
   color: #9aa093;
 }
+
+/* ---------- tappable places on the map ---------- */
+/* No hit-box elements: taps are matched to the nearest place in JS, so
+   badges that sit almost on top of each other cannot fight over the tap. */
+#sheet { touch-action: none; }
+
+#tip {
+  position: absolute;
+  transform-origin: 50% 100%;
+  margin-top: -12px;            /* sit just above the badge */
+  padding: 6px 11px;
+  border-radius: 14px;
+  background: rgba(24, 28, 20, .88);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+  color: #f3f4ee;
+  font-size: 13px;
+  font-weight: 550;
+  white-space: nowrap;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, .28);
+  pointer-events: none;
+}
+#tip[hidden] { display: none; }
+#tip::after {                    /* little pointer down to the badge */
+  content: "";
+  position: absolute;
+  left: 50%; top: 100%;
+  margin-left: -5px;
+  border: 5px solid transparent;
+  border-top-color: rgba(24, 28, 20, .88);
+}
+
+.grid.one-col { grid-template-columns: 1fr; }
+.hint-row { color: #5c6157; font-size: 12.5px; line-height: 1.35; }
+.hint-row .label { padding: 2px 0; }
