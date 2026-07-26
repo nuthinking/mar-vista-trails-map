@@ -22,7 +22,12 @@
 
 html, body {
   margin: 0;
-  height: 100%;
+  /* NOT height:100% — in iOS standalone that resolves against an initial
+     containing block which excludes the status bar, giving 812pt on a 874pt
+     screen while env(safe-area-inset-top) still reports 62px. vh units are
+     measured against the full screen, so the page finally covers it. */
+  height: 100vh;
+  height: 100dvh;
   overflow: hidden;
   overscroll-behavior: none;
   touch-action: none;            /* no pinch, no double-tap zoom, no rubber-banding */
@@ -38,7 +43,11 @@ html, body {
    clipped. Real SVG in the DOM — the browser rasterises it at native DPR. */
 #stage {
   position: fixed;
-  inset: 0;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100vh;
+  height: 100dvh;
   overflow: hidden;
   touch-action: none;
 }
@@ -66,7 +75,7 @@ html, body {
   position: absolute;
   left: 0;
   top: 0;
-  width: min(100%, calc(100svh * var(--sheet-aspect, 0.5554)));
+  width: min(100%, calc(100dvh * var(--sheet-aspect, 0.5554)));
   aspect-ratio: var(--sheet-aspect, 0.449);
   transform-origin: 0 0;          /* JS drives translate+scale from here */
   will-change: transform;
