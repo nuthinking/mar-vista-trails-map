@@ -151,8 +151,11 @@ html, body {
 
 .rule, #tip, #drawer {
   background: rgba(252, 252, 246, .62);
-  border: 1px solid rgba(24, 28, 20, .10);
   color: #2b3028;
+}
+
+.rule, #tip {
+  border: 1px solid rgba(24, 28, 20, .10);
   box-shadow: 0 1px 10px rgba(40, 40, 25, .13);
 }
 
@@ -227,7 +230,7 @@ html, body {
   max-height: 82svh;
   display: flex;
   flex-direction: column;
-  border-radius: 16px 16px 0 0;
+  border-radius: 28px 28px 0 0;   /* = close button inset (12) + its radius (16) */
   border-top: 1px solid rgba(255, 255, 255, .55);
   box-shadow: 0 -6px 34px rgba(40, 40, 25, .18);
   padding-bottom: var(--safe-b);
@@ -251,8 +254,8 @@ html, body {
 .drawer-head {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 8px 10px 6px 18px;
+  padding: 4px 56px 14px 18px;  /* right clears the button; bottom keeps
+                                   the list off it, top centres the title on it */
 }
 .drawer-head h2 {
   flex: 1;
@@ -262,17 +265,23 @@ html, body {
   letter-spacing: .12em;
   text-transform: uppercase;
 }
+/* Concentric with the drawer's corner: centre sits 28px from the top and
+   right edges, which is exactly the corner radius, so the gap to the arc and
+   the gap to the straight edges are both 12px. */
 #drawerClose {
-  flex: none;
+  position: absolute;
+  top: 11px;                    /* +1px border-top = 12 from the outer edge */
+  right: 12px;
   width: 32px; height: 32px;
   display: grid; place-items: center;
-  border: 0; border-radius: 8px;
-  background: rgba(0, 0, 0, .07);
+  border: 0; border-radius: 50%;
+  background: rgba(24, 28, 20, .07);
   color: var(--ink);
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
 }
-#drawerClose svg { width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; }
+#drawerClose:active { background: rgba(24, 28, 20, .14); }
+#drawerClose svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; }
 
 .drawer-body {
   overflow-y: auto;

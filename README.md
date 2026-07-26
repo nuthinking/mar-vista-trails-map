@@ -75,10 +75,13 @@ caches.keys().then(ks => ks.forEach(k => caches.delete(k)));
 On iOS this works from Mac Safari's Web Inspector over USB. Note that Safari's
 `Develop -> Disable Caches` does **not** touch service workers.
 
-**Build stamp.** `app.js` logs `[marvista] build ...` to the console and shows
-the same string at the foot of the legend drawer. Asset URLs carry `?v=` for
-the same reason — without it browsers serve a stale stylesheet while the HTML
-updates, which looks exactly like a broken layout.
+**Build stamp.** `app.js` logs `[marvista] build ...` to the console, so "am I
+looking at the new code?" is answerable at a glance.
+
+Asset URLs deliberately carry **no** `?v=` cache-buster. It duplicated what
+`CACHE` in `sw.js` already does, had to be hand-edited in two files, and had
+already drifted out of sync once. On a phone the service worker's cache name is
+what decides whether new files are fetched; in development a hard reload is.
 
 ## Gotchas worth remembering
 
