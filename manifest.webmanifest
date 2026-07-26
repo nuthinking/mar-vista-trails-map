@@ -1,6 +1,6 @@
 {
   "name": "Mar Vista Trails",
-  "short_name": "Mar Vista",
+  "short_name": "Mar Vista Trails",
   "description": "The Mar Vista trails map with your live GPS position on it.",
   "start_url": "./index.html",
   "scope": "./",
