@@ -184,12 +184,26 @@ const CAN_ZOOM = matchMedia('(pointer: coarse)').matches;
 const stage = $('stage'), sheetEl = $('sheet');
 const view = { s: 1, tx: 0, ty: 0 };
 
+/* In iOS standalone the status bar sits BESIDE the page: the viewport starts
+ * ~62px down the screen. Centring in the viewport therefore looks off-centre
+ * on the glass — 106px of paper above the map against 44 below — and because
+ * that strip is the same cream, nothing explains the imbalance.
+ *
+ * Shift up by half the strip so the map is centred on the SCREEN. Not
+ * expressible in CSS: it needs screen.height, which no media query exposes. */
+function screenStrip() {
+  if (!matchMedia('(display-mode: standalone)').matches) return 0;
+  return Math.max(0, (screen.height || 0) - innerHeight);
+}
+
 function clampView() {
   const sw = sheetEl.offsetWidth * view.s;
   const sh = sheetEl.offsetHeight * view.s;
   const vw = stage.clientWidth, vh = stage.clientHeight;
+  const lift = screenStrip() / 2;
   view.tx = sw <= vw ? (vw - sw) / 2 : Math.min(0, Math.max(vw - sw, view.tx));
-  view.ty = sh <= vh ? (vh - sh) / 2 : Math.min(0, Math.max(vh - sh, view.ty));
+  view.ty = sh <= vh ? Math.max(0, (vh - sh) / 2 - lift)
+                     : Math.min(0, Math.max(vh - sh, view.ty));
   /* Only offer the grab cursor when there is somewhere to go. On desktop the
    * map fits at 1x, so dragging is a no-op and the cursor should not imply
    * otherwise; zoom in and it becomes draggable again. */

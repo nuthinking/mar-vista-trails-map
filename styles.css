@@ -131,7 +131,7 @@ html, body {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: calc(var(--safe-t) + 9px) calc(var(--safe-r) + 14px) 9px calc(var(--safe-l) + 14px);
+  padding: max(var(--safe-t), 9px) max(var(--safe-r), 14px) 9px max(var(--safe-l), 14px);
   background: rgba(24, 28, 20, .88);
   -webkit-backdrop-filter: blur(12px);
   backdrop-filter: blur(12px);
@@ -159,9 +159,12 @@ html, body {
 #footbar {
   position: fixed;
   z-index: 10;
-  left: calc(var(--safe-l) + 16px);
-  right: calc(var(--safe-r) + 16px);
-  bottom: calc(var(--safe-b) + 16px);
+  /* max(), not +: the OS inset and our margin are alternatives. Adding them
+     put the bar 50pt up in standalone (34 inset + 16) while Safari, which
+     reports no inset, got 16 — the same CSS reading very differently. */
+  left: max(var(--safe-l), 16px);
+  right: max(var(--safe-r), 16px);
+  bottom: max(var(--safe-b), 16px);
   display: grid;
   grid-template-columns: 40px 1fr 40px;
   gap: 8px;
@@ -265,7 +268,7 @@ html, body {
   border-top: 1px solid rgba(255, 255, 255, .55);
   /* Hangs 80px below the screen edge. Rubber-banding upward would otherwise
      lift the sheet off the bottom and expose bare page behind it. */
-  padding-bottom: calc(var(--safe-b) + 80px);
+  padding-bottom: calc(max(var(--safe-b), 16px) + 80px);
   margin-bottom: -80px;
   touch-action: none;             /* the sheet itself drags; the list opts back in */
   will-change: transform;
@@ -292,7 +295,7 @@ html, body {
 .drawer-head {
   display: flex;
   align-items: center;
-  padding: 4px calc(var(--safe-r) + 56px) 14px calc(var(--safe-l) + 18px);
+  padding: 4px max(var(--safe-r), 56px) 14px max(var(--safe-l), 18px);
                                 /* right clears the button; bottom keeps the list
                                    off it, top centres the title on it */
 }
@@ -327,7 +330,7 @@ html, body {
   -webkit-overflow-scrolling: touch;
   overscroll-behavior: contain;
   touch-action: pan-y;           /* the one place scrolling is allowed */
-  padding: 0 calc(var(--safe-r) + 14px) 18px calc(var(--safe-l) + 14px);
+  padding: 0 max(var(--safe-r), 14px) 18px max(var(--safe-l), 14px);
 }
 
 .note {
