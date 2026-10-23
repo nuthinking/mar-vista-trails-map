@@ -411,6 +411,9 @@ function setDrawer(open) {
 
 drawer.addEventListener('pointerdown', e => {
   if (drawer.hidden) return;
+  /* Capturing would retarget the mouse click to the drawer, so the close
+   * button would never see it. */
+  if (e.target.closest('button')) return;
   // let the list scroll unless it is already at the top
   if (drawerBody.contains(e.target) && drawerBody.scrollTop > 0) return;
   dragging = true;
