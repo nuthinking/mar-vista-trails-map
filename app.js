@@ -79,6 +79,7 @@ let fix = null;
      * completes. Touch has no such behaviour, which is why it only broke on
      * desktop. */
     art.innerHTML = `<img src="${src}" alt="" draggable="false">`;
+    art.firstChild.addEventListener('load', flashPlaces, { once: true });
     document.documentElement.style.setProperty('--sheet-aspect', CAL.widthMetres / SHEET_H);
     startGeolocation();
   } catch (e) {
@@ -130,7 +131,7 @@ const PLACES = [
   { name: 'Fitness centre', fx: 0.2711, fy: 0.6368 },
   { name: 'Gracia',         fx: 0.3048, fy: 0.6499 },
   { name: 'Dos Rios gate',  fx: 0.3423, fy: 0.6456 },
-  { name: 'Playground',     fx: 0.4745, fy: 0.5389 },
+  { name: 'Playground',     fx: 0.4791, fy: 0.5451 },
   { name: 'Water pumping station', fx: 0.6326, fy: 0.3105 },
   { name: 'Water pumping station', fx: 0.3737, fy: 0.5520 }
 ];
@@ -144,6 +145,21 @@ function buildPlaces() {
   tip.id = 'tip';
   tip.hidden = true;
   sheetEl.appendChild(tip);
+}
+
+/* Taps match by proximity, so nothing on the map looks tappable. Once the
+ * artwork is in, pulse a translucent disc on each place so people learn
+ * where to tap, then take the discs out of the DOM. */
+function flashPlaces() {
+  for (const [i, p] of PLACES.entries()) {
+    const el = document.createElement('div');
+    el.className = 'place-hint';
+    el.style.left = (p.fx * 100) + '%';
+    el.style.top  = (p.fy * 100) + '%';
+    el.style.animationDelay = (400 + i * 60) + 'ms';
+    el.addEventListener('animationend', () => el.remove());
+    sheetEl.appendChild(el);
+  }
 }
 
 /** nearest place to a tap, in screen pixels, or null */
@@ -287,6 +303,28 @@ stage.addEventListener('pointerup', e => {
   }
 });
 stage.addEventListener('pointercancel', releasePointer);
+
+/* A mouse can say what is tappable before the click: pointer cursor and the
+ * same disc as the load hint over whichever place a click would pick. Uses
+ * placeNear, so hover and click can never disagree. */
+let hoverDisc = null;
+function setHover(p) {
+  stage.classList.toggle('over-place', !!p);
+  if (!p) { if (hoverDisc) hoverDisc.hidden = true; return; }
+  if (!hoverDisc) {
+    hoverDisc = document.createElement('div');
+    hoverDisc.className = 'place-hint hover';
+    sheetEl.appendChild(hoverDisc);
+  }
+  hoverDisc.style.left = (p.fx * 100) + '%';
+  hoverDisc.style.top  = (p.fy * 100) + '%';
+  hoverDisc.hidden = false;
+}
+stage.addEventListener('pointermove', e => {
+  if (e.pointerType !== 'mouse') return;
+  setHover(e.buttons ? null : placeNear(e.clientX, e.clientY));
+});
+stage.addEventListener('pointerleave', () => setHover(null));
 
 stage.addEventListener('wheel', e => {
   if (!CAN_ZOOM) return;              // desktop: leave the wheel alone

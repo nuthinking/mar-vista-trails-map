@@ -62,6 +62,7 @@ html, body {
 }
 #stage.pannable { cursor: grab; }
 #stage.pannable.dragging { cursor: grabbing; }
+#stage.over-place { cursor: pointer; }
 
 #backdrop {
   position: absolute;
@@ -422,6 +423,31 @@ html, body {
 /* No hit-box elements: taps are matched to the nearest place in JS, so
    badges that sit almost on top of each other cannot fight over the tap. */
 #sheet { touch-action: none; }
+
+/* one-off hint on load, showing where the tappable places are */
+.place-hint {
+  position: absolute;
+  width: 30px; height: 30px;
+  margin: -15px 0 0 -15px;
+  border-radius: 50%;
+  background: rgba(0, 200, 230, .30);
+  border: 1.5px solid rgba(0, 170, 210, .65);
+  pointer-events: none;
+  opacity: 0;
+  animation: place-hint 2.2s ease-out both;
+}
+.place-hint.hover { animation: none; opacity: 1; }
+.place-hint.hover[hidden] { display: none; }
+@keyframes place-hint {
+  0%        { opacity: 0; transform: scale(.4); }
+  15%       { opacity: 1; transform: scale(1.1); }
+  25%, 70%  { opacity: 1; transform: scale(1); }
+  100%      { opacity: 0; transform: scale(1); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .place-hint { animation-name: place-hint-fade; }
+  @keyframes place-hint-fade { 0%, 100% { opacity: 0; } 15%, 70% { opacity: 1; } }
+}
 
 #tip {
   position: absolute;
